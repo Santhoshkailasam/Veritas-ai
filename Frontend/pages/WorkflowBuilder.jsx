@@ -188,6 +188,8 @@ const deleteNode = () => {
       });
 
       const data = await res.json();
+      console.log("Backend Response:", data);
+
 if (!res.ok || data.error) {
   alert(data.error || "Invalid document uploaded.");
 
@@ -340,26 +342,65 @@ onNodeContextMenu={onNodeContextMenu}
       <div style={styles.scoreSection}>
         <h2 style={styles.scoreTitle}>Compliance Score</h2>
         <div style={styles.scoreCircle}>
-          {result.finalScore}%
+  
+{result.score}%
+
+
         </div>
       </div>
 
-      <div style={styles.reasonSection}>
-        <h3 style={styles.reasonTitle}>Reasoning Chain</h3>
+     <div style={styles.reasonSection}>
+  <h3 style={styles.reasonTitle}>AI Analysis Details</h3>
 
-        {result.reasoning_chain?.map((step, index) => (
-          <div key={index} style={styles.reasonItem}>
-            <div style={styles.reasonStep}>
-              Step {index + 1}
-            </div>
-            <div style={styles.reasonText}>
-              {step}
-            </div>
-          </div>
-        ))}
+  {/* Rules Triggered */}
+  {result.rules_triggered?.length > 0 && (
+    <>
+      <h4>Rules Triggered</h4>
+      {result.rules_triggered.map((rule, index) => (
+        <div key={index} style={styles.reasonItem}>
+          <div style={styles.reasonText}>{rule}</div>
+        </div>
+      ))}
+    </>
+  )}
 
+  {/* Missing Requirements */}
+  {result.missing_requirements?.length > 0 && (
+    <>
+      <h4>Missing Requirements</h4>
+      {result.missing_requirements.map((req, index) => (
+        <div
+          key={index}
+          style={{ ...styles.reasonItem, borderLeft: "4px solid #dc2626" }}
+        >
+          <div style={styles.reasonText}>{req}</div>
+        </div>
+      ))}
+    </>
+  )}
 
-      </div>
+  {/* Text Evidence */}
+  {result.text_evidence?.length > 0 && (
+    <>
+      <h4>Text Evidence</h4>
+      {result.text_evidence.map((text, index) => (
+        <div
+          key={index}
+          style={{ ...styles.reasonItem, borderLeft: "4px solid #16a34a" }}
+        >
+          <div style={styles.reasonText}>{text}</div>
+        </div>
+      ))}
+    </>
+  )}
+
+  {/* Meta Info */}
+  <div style={{ marginTop: 20, fontSize: 13, color: "#6b7280" }}>
+    Confidence: {result.confidence} | Risk Level: {result.risk_level} | 
+    Analysis Time: {result.analysis_time_ms}ms
+  </div>
+</div>
+
     </div>
   </div>
 )}

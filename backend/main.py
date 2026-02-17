@@ -8,6 +8,9 @@ from docx import Document
 import os
 import requests
 import json
+import tempfile
+import time
+import re
 from dotenv import load_dotenv
 
 # -----------------------------------
@@ -22,7 +25,7 @@ GROK_API_KEY = os.getenv("GROK_API_KEY")
 # -----------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change in production
+    allow_origins=["*"],  # 🔒 Restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,32 +47,12 @@ compliance_score_value = 0
 # -----------------------------------
 @app.get("/")
 def home():
-    return {"message": "FastAPI Backend Running"}
+    return {"message": "Compliance AI Backend Running"}
 
-@app.post("/login")
-def login():
-    global active_users_value
-    active_users.inc()
-    active_users_value += 1
-    return {"message": "User logged in"}
-
-@app.post("/logout")
-def logout():
-    global active_users_value
-    active_users.dec()
-    active_users_value -= 1
-    return {"message": "User logged out"}
-
-# -----------------------------------
-# PROMETHEUS METRICS ENDPOINT
-# -----------------------------------
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-# -----------------------------------
-# DASHBOARD METRICS
-# -----------------------------------
 @app.get("/dashboard-metrics")
 def dashboard_metrics():
     cpu_usage = psutil.cpu_percent(interval=0.3)
@@ -84,7 +67,41 @@ def dashboard_metrics():
     })
 
 # -----------------------------------
-# UPLOAD + VALIDATION + AI ANALYSIS
+# SAFE FILE TEXT EXTRACTION
+# -----------------------------------
+def extract_text(filename: str, content: bytes) -> str:
+    text = ""
+
+    if filename.endswith(".txt"):
+        text = content.decode("utf-8", errors="ignore")
+
+    elif filename.endswith(".pdf"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(content)
+            temp_path = tmp.name
+
+        with pdfplumber.open(temp_path) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
+
+        os.remove(temp_path)
+
+    elif filename.endswith(".docx"):
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+            tmp.write(content)
+            temp_path = tmp.name
+
+        doc = Document(temp_path)
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+
+        os.remove(temp_path)
+
+    return text
+
+
+# -----------------------------------
+# MAIN ANALYSIS ENDPOINT
 # -----------------------------------
 @app.post("/upload-nda")
 async def upload_nda(file: UploadFile = File(...)):
@@ -92,30 +109,9 @@ async def upload_nda(file: UploadFile = File(...)):
     global documents_processed_value, compliance_score_value
 
     content = await file.read()
-    filename = file.filename
-    text = ""
+    filename = file.filename.lower()
 
-    # -------------------------------
-    # FILE EXTRACTION
-    # -------------------------------
-    if filename.endswith(".txt"):
-        text = content.decode("utf-8", errors="ignore")
-
-    elif filename.endswith(".pdf"):
-        with open("temp.pdf", "wb") as f:
-            f.write(content)
-
-        with pdfplumber.open("temp.pdf") as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() or ""
-
-    elif filename.endswith(".docx"):
-        with open("temp.docx", "wb") as f:
-            f.write(content)
-
-        doc = Document("temp.docx")
-        for para in doc.paragraphs:
-            text += para.text + "\n"
+    text = extract_text(filename, content)
 
     if not text.strip():
         return JSONResponse(
@@ -126,7 +122,7 @@ async def upload_nda(file: UploadFile = File(...)):
     text_lower = text.lower()
 
     # -----------------------------------
-    # STAGE 1: DOCUMENT TYPE DETECTION
+    # DOCUMENT TYPE DETECTION
     # -----------------------------------
     policy_keywords = [
         "gdpr",
@@ -137,68 +133,62 @@ async def upload_nda(file: UploadFile = File(...)):
         "security policy"
     ]
 
-    keyword_matches = sum(1 for word in policy_keywords if word in text_lower)
-
-    if keyword_matches == 0:
+    if not any(keyword in text_lower for keyword in policy_keywords):
         return JSONResponse(
-            {
-                "error": "Please upload a valid GDPR, CCPA, or Security Policy document."
-            },
+            {"error": "Please upload a valid GDPR, CCPA, or Security Policy document."},
             status_code=400
         )
 
     # -----------------------------------
-    # STAGE 2: CHECK MISSING CRITICAL CLAUSES
+    # CLAUSE PRECHECK
     # -----------------------------------
-    required_clauses = {
-        "encryption": "Encryption policy",
-        "access control": "Access control policy",
-        "breach notification": "Breach notification procedure",
-        "data retention": "Data retention policy"
-    }
+    required_clauses = [
+        "encryption",
+        "access control",
+        "breach notification",
+        "data retention"
+    ]
 
-    missing_clauses = []
-
-    for key, description in required_clauses.items():
-        if key not in text_lower:
-            missing_clauses.append(description)
-
-    # If policy exists but missing important clauses
-    if len(missing_clauses) >= 2:
-        return JSONResponse(
-            {
-                "status": "INCOMPLETE_POLICY",
-                "missing_clauses": missing_clauses,
-                "message": "The uploaded policy is missing critical security components."
-            },
-            status_code=200
-        )
+    missing_clauses = [
+        clause for clause in required_clauses if clause not in text_lower
+    ]
 
     # -----------------------------------
-    # STAGE 3: AI COMPLIANCE ANALYSIS
+    # AI PROMPT (STRICT SINGLE OBJECT)
     # -----------------------------------
     prompt = f"""
-You are a senior legal compliance AI.
+You are a senior legal compliance auditor AI.
 
-Analyze the document for:
+Perform deep compliance analysis for:
 
 1. GDPR
 2. CCPA
 3. Internal Security Policy
 
-Return STRICT JSON ONLY.
+Return ONE single valid JSON object.
+Do NOT return multiple JSON objects.
+Do NOT include markdown.
+Do NOT include explanations outside JSON.
 
-Format:
+JSON structure:
 
 {{
   "frameworks": {{
-    "GDPR": 0-100,
-    "CCPA": 0-100,
-    "InternalPolicy": 0-100
+    "gdpr": {{
+      "score": 0-100,
+      "confidence": 0-1,
+      "risk_level": "LOW/MEDIUM/HIGH",
+      "rules_triggered": [],
+      "missing_requirements": [],
+      "text_evidence": []
+    }},
+    "ccpa": {{ }},
+    "internal_security_policy": {{ }}
   }},
   "finalScore": 0-100,
-  "status": "COMPLIANT" or "NON-COMPLIANT",
-  "reasoning_chain": ["list findings"]
+  "overall_status": "COMPLIANT/NON-COMPLIANT",
+  "reasoning_chain": [],
+  "improvement_recommendations": []
 }}
 
 Document Text:
@@ -206,6 +196,8 @@ Document Text:
 """
 
     try:
+        start_time = time.time()
+
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={
@@ -215,10 +207,7 @@ Document Text:
             json={
                 "model": "llama-3.1-8b-instant",
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a legal compliance AI. Return valid JSON only."
-                    },
+                    {"role": "system", "content": "Return only valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.2
@@ -227,6 +216,7 @@ Document Text:
         )
 
         ai_result = response.json()
+        analysis_time = int((time.time() - start_time) * 1000)
 
     except Exception as e:
         return JSONResponse(
@@ -235,12 +225,33 @@ Document Text:
         )
 
     # -----------------------------------
-    # SAFE JSON PARSING
+    # SAFE JSON EXTRACTION + REPAIR
     # -----------------------------------
     try:
         ai_text = ai_result["choices"][0]["message"]["content"]
         ai_text = ai_text.replace("```json", "").replace("```", "").strip()
-        parsed = json.loads(ai_text)
+
+        # Extract first full JSON block safely
+        matches = re.findall(r'\{.*?\}', ai_text, re.DOTALL)
+
+        if not matches:
+            raise ValueError("No JSON found in AI output")
+
+        # Merge multiple JSON blocks if needed
+        if len(matches) > 1:
+            combined = {}
+            for block in matches:
+                try:
+                    combined.update(json.loads(block))
+                except:
+                    continue
+            parsed = combined
+        else:
+            parsed = json.loads(matches[0])
+
+        # Add system fields
+        parsed["analysis_time_ms"] = analysis_time
+        parsed["missing_clauses_detected"] = missing_clauses
 
         # Update metrics
         documents_processed.inc()
@@ -257,7 +268,7 @@ Document Text:
             {
                 "error": "AI parsing failed",
                 "details": str(e),
-                "ai_text": ai_text if "ai_text" in locals() else None
+                "raw_ai_output": ai_text if "ai_text" in locals() else None
             },
             status_code=500
         )
