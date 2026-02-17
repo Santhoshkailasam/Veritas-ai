@@ -1,7 +1,7 @@
 import { useState,useEffect } from "react";
 import {LineChart,Line,XAxis,YAxis,Tooltip,ResponsiveContainer,CartesianGrid} from "recharts";
 import { IoDocumentTextOutline, IoShieldCheckmarkOutline, IoPeopleOutline, IoCheckmarkCircle} from "react-icons/io5";
-import Navbar from "../../src/components/Navbar";
+import Navbar from "../components/Navbar";
 
 const weeklyData = [
   { name: "Mon", value: 400 },
