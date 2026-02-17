@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useContext } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../../src/context/AuthContext";
 
 export default function Login() {
   const [selectedRole, setSelectedRole] = useState("paralegal");

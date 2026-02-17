@@ -1,10 +1,10 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
+import Login from "../Frontend/pages/Login";
+import Dashboard from "../Frontend/pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
-import WorkflowBuilder from "./pages/WorkflowBuilder";
-import AuditLogs from "./pages/Auditlogs";
+import WorkflowBuilder from "../Frontend/pages/WorkflowBuilder";
+import AuditLogs from "../Frontend/pages/Auditlogs";
 function App() {
   return (
     <AuthProvider>
