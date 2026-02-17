@@ -32,13 +32,17 @@ export default function WorkflowBuilder() {
   const [file, setFile] = useState(null);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
+const [contextMenu, setContextMenu] = useState(null);
 
   /* ---------------- ADD NODE ---------------- */
 
   const addNode = (type) => {
     const newNode = {
       id: Date.now().toString(),
-      position: { x: 200, y: 200 },
+      position: {
+        x: Math.random() * 400 + 100,
+        y: Math.random() * 300 + 100,
+      },
       data: { label: NODE_TYPES[type], type, status: "IDLE" },
     };
 
@@ -72,11 +76,10 @@ export default function WorkflowBuilder() {
     [nodes]
   );
 
-  /* ---------------- VALIDATE WHOLE FLOW ---------------- */
+  /* ---------------- VALIDATE WORKFLOW ---------------- */
 
   const validateWorkflow = () => {
     const required = ["extract", "gdpr", "score"];
-
     const types = nodes.map((n) => n.data.type);
 
     for (let r of required) {
@@ -91,10 +94,15 @@ export default function WorkflowBuilder() {
       return false;
     }
 
+    if (!file) {
+      alert("Please upload a document.");
+      return false;
+    }
+
     return true;
   };
 
-  /* ---------------- STATUS UPDATE ---------------- */
+  /* ---------------- UPDATE NODE STATUS ---------------- */
 
   const updateStatus = (type, status) => {
     setNodes((nds) =>
@@ -105,6 +113,56 @@ export default function WorkflowBuilder() {
       )
     );
   };
+ const onNodeContextMenu = useCallback((event, node) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  // If right-clicking the same node → close it
+  if (contextMenu && contextMenu.node.id === node.id) {
+    setContextMenu(null);
+    return;
+  }
+
+  // Otherwise open menu
+  setContextMenu({
+    x: event.clientX,
+    y: event.clientY,
+    node,
+  });
+}, [contextMenu]);
+
+const replaceNode = (newType) => {
+  setNodes((nds) =>
+    nds.map((n) =>
+      n.id === contextMenu.node.id
+        ? {
+            ...n,
+            data: {
+              ...n.data,
+              type: newType,
+              label: NODE_TYPES[newType],
+              status: "IDLE",
+            },
+          }
+        : n
+    )
+  );
+
+  setContextMenu(null);
+};
+const deleteNode = () => {
+  const nodeId = contextMenu.node.id;
+
+  setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+
+  setEdges((eds) =>
+    eds.filter(
+      (e) => e.source !== nodeId && e.target !== nodeId
+    )
+  );
+
+  setContextMenu(null);
+};
 
   /* ---------------- EXECUTION ---------------- */
 
@@ -112,6 +170,7 @@ export default function WorkflowBuilder() {
     if (!validateWorkflow()) return;
 
     setRunning(true);
+    setResult(null);
 
     try {
       updateStatus("extract", "RUNNING");
@@ -129,12 +188,21 @@ export default function WorkflowBuilder() {
       });
 
       const data = await res.json();
+if (!res.ok || data.error) {
+  alert(data.error || "Invalid document uploaded.");
 
-      if (!res.ok || data.error) {
-        updateStatus("gdpr", "FAILED");
-        setRunning(false);
-        return;
-      }
+  // Make all nodes FAILED (turn red)
+  setNodes((nds) =>
+    nds.map((node) => ({
+      ...node,
+      data: { ...node.data, status: "FAILED" },
+    }))
+  );
+
+  setRunning(false);
+  return;
+}
+
 
       updateStatus("gdpr", "SUCCESS");
       setResult(data);
@@ -154,7 +222,7 @@ export default function WorkflowBuilder() {
   const styledNodes = nodes.map((node) => {
     let borderColor = "#e5e7eb";
 
-    if (node.data.status === "RUNNING") borderColor = "#f59e0b";
+    if (node.data.status === "RUNNING") borderColor = "#11376b";
     if (node.data.status === "SUCCESS") borderColor = "#16a34a";
     if (node.data.status === "FAILED") borderColor = "#dc2626";
 
@@ -162,32 +230,35 @@ export default function WorkflowBuilder() {
       ...node,
       style: {
         border: `2px solid ${borderColor}`,
-        padding: 10,
-        borderRadius: 10,
+        padding: 12,
+        borderRadius: 12,
+        background: "white",
+        boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+        transition: "all 0.3s ease",
       },
+
     };
   });
 
   return (
-    <div style={styles.page}>
+    
+    <div style={styles.page} onClick={() => contextMenu && setContextMenu(null)}>
       <Navbar active="workflow" />
 
       <div style={styles.container}>
-        {/* LEFT SIDEBAR */}
+        {/* LEFT PANEL */}
         <div style={styles.leftPanel}>
-          <h3>Add Nodes</h3>
+          <h3 style={{ marginBottom: 15 }}>Workflow Nodes</h3>
 
-          <button style={styles.addBtn} onClick={() => addNode("extract")}>
-            Extract Text
-          </button>
-
-          <button style={styles.addBtn} onClick={() => addNode("gdpr")}>
-            Analyse GDPR
-          </button>
-
-          <button style={styles.addBtn} onClick={() => addNode("score")}>
-            Score Compliance
-          </button>
+          {Object.keys(NODE_TYPES).map((type) => (
+            <button
+              key={type}
+              style={styles.addBtn}
+              onClick={() => addNode(type)}
+            >
+              {NODE_TYPES[type]}
+            </button>
+          ))}
 
           <hr style={{ margin: "20px 0" }} />
 
@@ -201,11 +272,11 @@ export default function WorkflowBuilder() {
             onClick={runWorkflow}
             disabled={running}
           >
-            {running ? "Running..." : "Run Workflow"}
+            {running ? "Running Workflow..." : "Run Workflow"}
           </button>
         </div>
 
-        {/* FLOW CANVAS */}
+        {/* CANVAS */}
         <div style={styles.canvasWrapper}>
           <ReactFlowProvider>
             <ReactFlow
@@ -215,62 +286,273 @@ export default function WorkflowBuilder() {
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               fitView
+              onNodesDelete={(deleted) => {
+  setNodes((nds) =>
+    nds.filter((node) => !deleted.some((d) => d.id === node.id))
+  );
+
+  // Also remove connected edges
+  setEdges((eds) =>
+    eds.filter(
+      (edge) =>
+        !deleted.some(
+          (d) => d.id === edge.source || d.id === edge.target
+        )
+    )
+  );
+}}
+deleteKeyCode={["Backspace", "Delete"]}
+onNodeContextMenu={onNodeContextMenu}
+
+
             >
+              
               <Controls />
-              <Background />
+              <Background gap={16} size={1} />
             </ReactFlow>
           </ReactFlowProvider>
         </div>
       </div>
 
-      {result && (
-        <div style={styles.resultBox}>
-          <h2>Compliance Score: {result.finalScore}%</h2>
+      {/* PREMIUM RESULT PANEL */}
+     {result && (
+  <div style={styles.resultWrapper}>
+    <div style={styles.resultCard}>
+
+      {/* CLOSE BUTTON */}
+      <button
+        style={styles.closeBtn}
+        onClick={() => {
+          setResult(null);
+
+          // Reset node statuses when closing result
+          setNodes((nds) =>
+            nds.map((node) => ({
+              ...node,
+              data: { ...node.data, status: "IDLE" },
+            }))
+          );
+        }}
+      >
+        ✕
+      </button>
+
+      <div style={styles.scoreSection}>
+        <h2 style={styles.scoreTitle}>Compliance Score</h2>
+        <div style={styles.scoreCircle}>
+          {result.finalScore}%
         </div>
-      )}
+      </div>
+
+      <div style={styles.reasonSection}>
+        <h3 style={styles.reasonTitle}>Reasoning Chain</h3>
+
+        {result.reasoning_chain?.map((step, index) => (
+          <div key={index} style={styles.reasonItem}>
+            <div style={styles.reasonStep}>
+              Step {index + 1}
+            </div>
+            <div style={styles.reasonText}>
+              {step}
+            </div>
+          </div>
+        ))}
+
+
+      </div>
+    </div>
+  </div>
+)}
+        {/* CONTEXT MENU */}
+{contextMenu && (
+  <div
+    style={{
+      position: "fixed",
+      top: contextMenu.y,
+      left: contextMenu.x,
+      background: "white",
+      borderRadius: 8,
+      boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
+      padding: 10,
+      zIndex: 2000,
+      minWidth: 160,
+    }}
+    onClick={(e) => e.stopPropagation()}
+  >
+    <div style={styles.menuTitle}>Replace Node</div>
+
+    {Object.keys(NODE_TYPES)
+      .filter((type) => type !== contextMenu.node.data.type)
+      .map((type) => (
+        <div
+          key={type}
+          style={styles.menuItem}
+          onClick={() => replaceNode(type)}
+        >
+          {NODE_TYPES[type]}
+        </div>
+      ))}
+
+    <hr style={{ margin: "8px 0" }} />
+
+    <div
+      style={{ ...styles.menuItem, color: "#dc2626" }}
+      onClick={deleteNode}
+    >
+      Delete Node
+    </div>
+  </div>
+)}
     </div>
   );
 }
 
-/* ---------------- STYLES ---------------- */
+/* ---------------- PREMIUM STYLES ---------------- */
 
 const styles = {
   page: {
     display: "flex",
     flexDirection: "column",
     height: "100vh",
+    background: "linear-gradient(135deg, #f1f5f9, #e0e7ff)",
   },
+
   container: {
     display: "flex",
     flex: 1,
   },
+
   leftPanel: {
-    width: 260,
-    padding: 20,
+    width: 280,
+    padding: 25,
     borderRight: "1px solid #e5e7eb",
+    background: "white",
   },
+
   addBtn: {
-    display: "block",
     width: "100%",
-    marginBottom: 10,
     padding: 10,
-    borderRadius: 6,
-    border: "1px solid #ccc",
+    marginBottom: 10,
+    borderRadius: 8,
+    border: "1px solid #d1d5db",
     cursor: "pointer",
+    background: "#f8fafc",
   },
+
   runBtn: {
     marginTop: 20,
     width: "100%",
-    padding: 10,
-    background: "#11376b",
+    padding: 12,
+    background: "linear-gradient(135deg, #11376b, #2563eb)",
     color: "#fff",
     border: "none",
-    borderRadius: 6,
+    borderRadius: 8,
+    fontWeight: 600,
+    cursor: "pointer",
   },
+
   canvasWrapper: {
     flex: 1,
   },
-  resultBox: {
-    padding: 20,
+
+  resultWrapper: {
+    padding: 40,
+    background: "linear-gradient(135deg, #f8fafc, #eef2ff)",
   },
+
+ resultCard: {
+  position: "relative",   // IMPORTANT
+  maxWidth: 1100,
+  margin: "auto",
+  background: "rgba(255,255,255,0.7)",
+  backdropFilter: "blur(12px)",
+  borderRadius: 20,
+  padding: 40,
+  display: "flex",
+  gap: 50,
+  boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+},
+
+
+  scoreSection: {
+    minWidth: 250,
+    textAlign: "center",
+  },
+
+  scoreTitle: {
+    fontSize: 18,
+    fontWeight: 600,
+    marginBottom: 20,
+  },
+
+  scoreCircle: {
+    width: 170,
+    height: 170,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #11376b, #2563eb)",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 36,
+    fontWeight: 700,
+    boxShadow: "0 15px 30px rgba(17,55,107,0.4)",
+  },
+
+  reasonSection: {
+    flex: 1,
+  },
+
+  reasonTitle: {
+    fontSize: 22,
+    fontWeight: 600,
+    marginBottom: 20,
+  },
+
+  reasonItem: {
+    background: "white",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 15,
+    borderLeft: "4px solid #11376b",
+    boxShadow: "0 6px 15px rgba(0,0,0,0.05)",
+  },
+
+  reasonStep: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#11376b",
+    marginBottom: 6,
+  },
+
+  reasonText: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 1.6,
+  },
+  closeBtn: {
+  position: "absolute",
+  top: 15,
+  right: 20,
+  border: "none",
+  background: "transparent",
+  fontSize: 20,
+  cursor: "pointer",
+  color: "#6b7280",
+},
+menuTitle: {
+  fontSize: 12,
+  fontWeight: 600,
+  marginBottom: 6,
+  color: "#6b7280",
+},
+
+menuItem: {
+  padding: "6px 8px",
+  borderRadius: 6,
+  cursor: "pointer",
+  fontSize: 14,
+},
+
+
 };
