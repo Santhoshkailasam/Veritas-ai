@@ -37,7 +37,7 @@ export default function WorkflowBuilder() {
   const [contextMenu, setContextMenu] = useState(null);
   const { user } = useContext(AuthContext);
   const isAssociate = user?.role === "associate";
-    const isParalegal = user?.role === "paralegal";
+  const isExecutor = ["paralegal", "partner"].includes(user?.role);
   /* ---------------- ADD NODE ---------------- */
 
   const addNode = (type) => {
@@ -302,12 +302,13 @@ export default function WorkflowBuilder() {
   ];
 
 
-  useEffect(() => {
-    if (isParalegal) {
-      setNodes(defaultTemplateNodes);
-      setEdges(defaultTemplateEdges);
-    }
-  }, [isParalegal]);
+ useEffect(() => {
+  if (isExecutor) {
+    setNodes(defaultTemplateNodes);
+    setEdges(defaultTemplateEdges);
+  }
+}, [isExecutor]);
+
 
   return (
 
@@ -319,6 +320,7 @@ export default function WorkflowBuilder() {
          <h3 style={{ marginBottom: 15 }}>
   {isAssociate ? "Workflow Builder" : "Workflow Executor"}
 </h3>
+
 
 {/* Show buttons ONLY for Associate */}
 {isAssociate &&

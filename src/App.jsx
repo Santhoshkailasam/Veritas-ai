@@ -33,9 +33,18 @@ function Layout() {
           element={
             <ProtectedRoute allowedRoles={["partner"]}>
               <Dashboard />
+             
             </ProtectedRoute>
           }
         />
+        <Route
+  path="/auditlogs"
+  element={
+    <ProtectedRoute allowedRoles={["partner"]}>
+      <AuditLogs />
+    </ProtectedRoute>
+  }
+/>
 
        <Route
   path="/workflow"
