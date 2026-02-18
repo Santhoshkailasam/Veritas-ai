@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState,useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 
 import ReactFlow, {
   ReactFlowProvider,
@@ -302,12 +302,12 @@ export default function WorkflowBuilder() {
   ];
 
 
- useEffect(() => {
-  if (isExecutor) {
-    setNodes(defaultTemplateNodes);
-    setEdges(defaultTemplateEdges);
-  }
-}, [isExecutor]);
+  useEffect(() => {
+    if (isExecutor) {
+      setNodes(defaultTemplateNodes);
+      setEdges(defaultTemplateEdges);
+    }
+  }, [isExecutor]);
 
 
   return (
@@ -317,23 +317,23 @@ export default function WorkflowBuilder() {
       <div style={styles.container}>
         {/* LEFT PANEL */}
         <div style={styles.leftPanel}>
-         <h3 style={{ marginBottom: 15 }}>
-  {isAssociate ? "Workflow Builder" : "Workflow Executor"}
-</h3>
+          <h3 style={{ marginBottom: 15 }}>
+            {isAssociate ? "Workflow Builder" : "Workflow Executor"}
+          </h3>
 
 
-{/* Show buttons ONLY for Associate */}
-{isAssociate &&
-  Object.keys(NODE_TYPES).map((type) => (
-    <button
-      key={type}
-      style={styles.addBtn}
-      onClick={() => addNode(type)}
-    >
-      {NODE_TYPES[type]}
-    </button>
-  ))
-}
+          {/* Show buttons ONLY for Associate */}
+          {isAssociate &&
+            Object.keys(NODE_TYPES).map((type) => (
+              <button
+                key={type}
+                style={styles.addBtn}
+                onClick={() => addNode(type)}
+              >
+                {NODE_TYPES[type]}
+              </button>
+            ))
+          }
 
 
 
@@ -687,6 +687,4 @@ const styles = {
     cursor: "pointer",
     fontSize: 14,
   },
-
-
 };
