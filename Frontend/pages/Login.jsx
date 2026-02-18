@@ -7,6 +7,29 @@ export default function Login() {
   const [selectedRole, setSelectedRole] = useState("paralegal");
   const navigate = useNavigate();
   const { login } = useContext(AuthContext);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+ const handleLogin = () => {
+  const result = login(email, password);
+
+  if (!result.success) {
+    alert(result.message);
+    return;
+  }
+
+  const role = result.user.role;
+
+  if (role === "paralegal" || role === "associate") {
+    navigate("/workflow");
+  } else if (role === "partner") {
+    navigate("/dashboard");
+  } else if (role === "it admin") {
+    navigate("/auditlogs");
+  }
+};
+
+
 
   return (
     <div style={styles.page}>
@@ -28,7 +51,7 @@ export default function Login() {
           <p style={styles.label}>IDENTIFY YOUR ROLE</p>
 
           <div style={styles.roleGrid}>
-            {["paralegal", "associate", "partner", "it admin"].map((role) => (
+            {["paralegal", "associate", "partner", "IT admin"].map((role) => (
               <button
                 key={role}
                 onClick={() => setSelectedRole(role)}
@@ -49,7 +72,10 @@ export default function Login() {
               type="email"
               placeholder="name@firm.com"
               style={styles.input}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
+
           </div>
 
           {/* Password */}
@@ -62,32 +88,32 @@ export default function Login() {
               type="password"
               placeholder="••••••••"
               style={styles.input}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
+
           </div>
 
           <button
             style={styles.signInBtn}
-            onClick={() => {
-              login(selectedRole); // 🔥 THIS IS IMPORTANT
-              navigate("/dashboard");
-            }}
+            onClick={handleLogin}
           >
             Secure Sign In →
           </button>
 
-          <p style={styles.bottomText}>
-            New to Veritas? <span style={styles.link}>Request Firm Access</span>
-          </p>
-        </div>
+        <p style={styles.bottomText}>
+          New to Veritas? <span style={styles.link}>Request Firm Access</span>
+        </p>
+      </div>
 
-        {/* Footer */}
-        <div style={styles.footer}>
-          <span>🔒 SOC2 CERTIFIED</span>
-          <span>🔐 256-BIT AES</span>
-          <span>🛡 PRIVACY FIRST</span>
-        </div>
+      {/* Footer */}
+      <div style={styles.footer}>
+        <span>🔒 SOC2 CERTIFIED</span>
+        <span>🔐 256-BIT AES</span>
+        <span>🛡 PRIVACY FIRST</span>
       </div>
     </div>
+    </div >
   );
 }
 

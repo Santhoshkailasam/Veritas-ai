@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Navbar from "../components/Navbar";
 
 export default function AuditLogs() {
   const dummyLogs = [
@@ -54,7 +53,6 @@ export default function AuditLogs() {
 
   return (
     <div style={styles.page}>
-      <Navbar active="audit" />
 
       <div style={styles.container}>
         <h1 style={styles.heading}>Audit Activity Dashboard</h1>

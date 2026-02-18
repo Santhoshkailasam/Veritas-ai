@@ -12,6 +12,7 @@ import tempfile
 import time
 import re
 from dotenv import load_dotenv
+from fastapi import WebSocket
 
 # -----------------------------------
 # CREATE FASTAPI APP
@@ -272,3 +273,35 @@ Document Text:
             },
             status_code=500
         )
+@app.websocket("/ws/analyze")
+async def websocket_analysis(websocket: WebSocket):
+    await websocket.accept()
+
+    try:
+        # Stage 1
+        await websocket.send_json({"stage": "EXTRACTING"})
+        await asyncio.sleep(1)
+
+        # Stage 2
+        await websocket.send_json({"stage": "VALIDATING"})
+        await asyncio.sleep(1)
+
+        # Stage 3
+        await websocket.send_json({"stage": "AI_ANALYSIS"})
+        await asyncio.sleep(2)
+
+        # Fake final result
+        await websocket.send_json({
+            "stage": "COMPLETED",
+            "result": {
+                "score": 92,
+                "confidence": 0.94,
+                "risk_level": "LOW"
+            }
+        })
+
+    except Exception as e:
+        await websocket.send_json({"error": str(e)})
+
+    finally:
+        await websocket.close()

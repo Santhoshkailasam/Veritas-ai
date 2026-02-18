@@ -1,44 +1,71 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AuthProvider, AuthContext } from "../Frontend/context/AuthContext";
+import { useContext } from "react";
+
 import Login from "../Frontend/pages/Login";
 import Dashboard from "../Frontend/pages/Dashboard";
-import ProtectedRoute from "../Frontend/components/ProtectedRoute";
-import { AuthProvider } from "../Frontend/context/AuthContext";
 import WorkflowBuilder from "../Frontend/pages/WorkflowBuilder";
 import AuditLogs from "../Frontend/pages/Auditlogs";
-function App() {
+import ProtectedRoute from "../Frontend/components/ProtectedRoute";
+import Navbar from "../Frontend/components/Navbar";
+
+function Layout() {
+  const location = useLocation();
+  const { user } = useContext(AuthContext);
+
+  // Hide navbar on login page
+  const isLoginPage = location.pathname === "/";
+
+  const showNavbar =
+    user &&
+    user.role === "partner" &&
+    !isLoginPage;
+
+  return (
+    <>
+      {showNavbar && <Navbar />}
+
+      <Routes>
+        <Route path="/" element={<Login />} />
+
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["partner"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+       <Route
+  path="/workflow"
+  element={
+    <ProtectedRoute allowedRoles={["paralegal", "associate", "partner"]}>
+      <WorkflowBuilder />
+    </ProtectedRoute>
+  }
+/>
+
+
+        <Route
+          path="/auditlogs"
+          element={
+            <ProtectedRoute allowedRoles={["it admin","partner"]}>
+              <AuditLogs />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
+  );
+}
+
+export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Login />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-           <Route
-            path="/workflow"
-            element={
-              <ProtectedRoute>
-                <WorkflowBuilder />
-              </ProtectedRoute>
-            }
-          />
-           <Route
-            path="/auditlogs"
-            element={
-              <ProtectedRoute>
-                <AuditLogs />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+        <Layout />
       </BrowserRouter>
     </AuthProvider>
   );
 }
-
-export default App;
