@@ -25,7 +25,7 @@ export default function Login() {
   } else if (role === "partner") {
     navigate("/dashboard");
   } else if (role === "it admin") {
-    navigate("/auditlogs");
+    navigate("/admindashboard");
   }
 };
 
@@ -51,7 +51,7 @@ export default function Login() {
           <p style={styles.label}>IDENTIFY YOUR ROLE</p>
 
           <div style={styles.roleGrid}>
-            {["paralegal", "associate", "partner", "IT admin"].map((role) => (
+            {["paralegal", "associate", "partner", "it admin"].map((role) => (
               <button
                 key={role}
                 onClick={() => setSelectedRole(role)}
