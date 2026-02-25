@@ -34,7 +34,7 @@ export default function Dashboard() {
 
 useEffect(() => {
   const fetchMetrics = () => {
-    fetch("http://localhost:8000/dashboard-metrics")
+    fetch("https://veritas-ai-1-f5sr.onrender.com/dashboard-metrics")
       .then(res => res.json())
       .then(data => {
         setMetrics(data);

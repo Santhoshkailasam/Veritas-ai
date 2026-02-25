@@ -195,7 +195,7 @@ export default function WorkflowBuilder() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("http://127.0.0.1:8000/upload-nda", {
+      const res = await fetch("https://veritas-ai-1-f5sr.onrender.com/upload-nda", {
         method: "POST",
         body: formData,
       });
