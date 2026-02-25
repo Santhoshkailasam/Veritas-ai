@@ -12,7 +12,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useContext } from "react";
-import { AuthContext } from "../context/Authcontext";
+import { AuthContext } from "../../context/Authcontext";
 
 /* ---------------- NODE TYPES ---------------- */
 
