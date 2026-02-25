@@ -1,13 +1,13 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { AuthProvider, AuthContext } from "../Frontend/context/Authcontext";
+import { AuthProvider, AuthContext } from "./context/Authcontext";
 import { useContext } from "react";
 
-import Login from "../Frontend/pages/Login";
-import Dashboard from "../Frontend/pages/Dashboard";
-import WorkflowBuilder from "../Frontend/pages/WorkflowBuilder";
-import AuditLogs from "../Frontend/pages/Auditlogs";
-import ProtectedRoute from "../Frontend/components/ProtectedRoute";
-import Navbar from "../Frontend/components/Navbar";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import WorkflowBuilder from "./pages/WorkflowBuilder";
+import AuditLogs from "./pages/Auditlogs";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Navbar from "./components/Navbar";
 
 function Layout() {
   const location = useLocation();
