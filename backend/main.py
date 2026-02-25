@@ -1,6 +1,7 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, JSONResponse
+from fastapi import Request
 from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 import psutil
 import pdfplumber
@@ -12,25 +13,61 @@ import tempfile
 import time
 import re
 from dotenv import load_dotenv
-from fastapi import WebSocket
+from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+import asyncio
 
 # -----------------------------------
-# CREATE FASTAPI APP
+# DATABASE CONFIG (SQLite)
+# -----------------------------------
+DATABASE_URL = "sqlite:///./audit_logs.db"
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(bind=engine)
+Base = declarative_base()
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user = Column(String, index=True)
+    action = Column(String)
+    status = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+Base.metadata.create_all(bind=engine)
+
+# -----------------------------------
+# FASTAPI APP
 # -----------------------------------
 app = FastAPI()
 load_dotenv()
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 
-# -----------------------------------
-# CORS CONFIGURATION
-# -----------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 🔒 Restrict in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# -----------------------------------
+# AUDIT LOG FUNCTION
+# -----------------------------------
+def create_audit_log(user, action, status):
+    db = SessionLocal()
+    log = AuditLog(
+        user=user,
+        action=action,
+        status=status,
+        timestamp=datetime.utcnow()
+    )
+    db.add(log)
+    db.commit()
+    db.close()
 
 # -----------------------------------
 # PROMETHEUS METRICS
@@ -59,16 +96,16 @@ def dashboard_metrics():
     cpu_usage = psutil.cpu_percent(interval=0.3)
     memory_usage = psutil.virtual_memory().percent
 
-    return JSONResponse({
+    return {
         "activeUsers": active_users_value,
         "documentsProcessed": documents_processed_value,
         "complianceScore": compliance_score_value,
         "cpuUsage": round(cpu_usage, 1),
         "memoryUsage": round(memory_usage, 1)
-    })
+    }
 
 # -----------------------------------
-# SAFE FILE TEXT EXTRACTION
+# TEXT EXTRACTION
 # -----------------------------------
 def extract_text(filename: str, content: bytes) -> str:
     text = ""
@@ -100,7 +137,6 @@ def extract_text(filename: str, content: bytes) -> str:
 
     return text
 
-
 # -----------------------------------
 # MAIN ANALYSIS ENDPOINT
 # -----------------------------------
@@ -115,6 +151,7 @@ async def upload_nda(file: UploadFile = File(...)):
     text = extract_text(filename, content)
 
     if not text.strip():
+        create_audit_log("admin@company.com", "UPLOAD_POLICY", "FAILED")
         return JSONResponse(
             {"error": "Could not extract text from document"},
             status_code=400
@@ -122,80 +159,37 @@ async def upload_nda(file: UploadFile = File(...)):
 
     text_lower = text.lower()
 
-    # -----------------------------------
-    # DOCUMENT TYPE DETECTION
-    # -----------------------------------
     policy_keywords = [
-        "gdpr",
-        "ccpa",
-        "data protection",
-        "privacy policy",
-        "confidentiality",
+        "gdpr", "ccpa", "data protection",
+        "privacy policy", "confidentiality",
         "security policy"
     ]
 
     if not any(keyword in text_lower for keyword in policy_keywords):
+        create_audit_log("admin@company.com", "UPLOAD_POLICY", "FAILED")
         return JSONResponse(
-            {"error": "Please upload a valid GDPR, CCPA, or Security Policy document."},
+            {"error": "Invalid policy document"},
             status_code=400
         )
 
-    # -----------------------------------
-    # CLAUSE PRECHECK
-    # -----------------------------------
     required_clauses = [
-        "encryption",
-        "access control",
-        "breach notification",
-        "data retention"
+        "encryption", "access control",
+        "breach notification", "data retention"
     ]
 
     missing_clauses = [
         clause for clause in required_clauses if clause not in text_lower
     ]
 
-    # -----------------------------------
-    # AI PROMPT (STRICT SINGLE OBJECT)
-    # -----------------------------------
     prompt = f"""
-You are a senior legal compliance auditor AI.
+    Perform compliance analysis for GDPR, CCPA and Internal Security Policy.
+    Return ONE valid JSON object only.
 
-Perform deep compliance analysis for:
+    Document Text:
+    {text[:8000]}
+    """
 
-1. GDPR
-2. CCPA
-3. Internal Security Policy
-
-Return ONE single valid JSON object.
-Do NOT return multiple JSON objects.
-Do NOT include markdown.
-Do NOT include explanations outside JSON.
-
-JSON structure:
-
-{{
-  "frameworks": {{
-    "gdpr": {{
-      "score": 0-100,
-      "confidence": 0-1,
-      "risk_level": "LOW/MEDIUM/HIGH",
-      "rules_triggered": [],
-      "missing_requirements": [],
-      "text_evidence": []
-    }},
-    "ccpa": {{ }},
-    "internal_security_policy": {{ }}
-  }},
-  "finalScore": 0-100,
-  "overall_status": "COMPLIANT/NON-COMPLIANT",
-  "reasoning_chain": [],
-  "improvement_recommendations": []
-}}
-
-Document Text:
-{text[:8000]}
-"""
-
+    # ---------- AI REQUEST ----------
     try:
         start_time = time.time()
 
@@ -220,41 +214,22 @@ Document Text:
         analysis_time = int((time.time() - start_time) * 1000)
 
     except Exception as e:
+        create_audit_log("admin@company.com", "UPLOAD_POLICY", "FAILED")
         return JSONResponse(
             {"error": "AI request failed", "details": str(e)},
             status_code=500
         )
 
-    # -----------------------------------
-    # SAFE JSON EXTRACTION + REPAIR
-    # -----------------------------------
+    # ---------- JSON PARSING ----------
     try:
         ai_text = ai_result["choices"][0]["message"]["content"]
         ai_text = ai_text.replace("```json", "").replace("```", "").strip()
 
-        # Extract first full JSON block safely
-        matches = re.findall(r'\{.*?\}', ai_text, re.DOTALL)
+        parsed = json.loads(ai_text)
 
-        if not matches:
-            raise ValueError("No JSON found in AI output")
-
-        # Merge multiple JSON blocks if needed
-        if len(matches) > 1:
-            combined = {}
-            for block in matches:
-                try:
-                    combined.update(json.loads(block))
-                except:
-                    continue
-            parsed = combined
-        else:
-            parsed = json.loads(matches[0])
-
-        # Add system fields
         parsed["analysis_time_ms"] = analysis_time
         parsed["missing_clauses_detected"] = missing_clauses
 
-        # Update metrics
         documents_processed.inc()
         documents_processed_value += 1
 
@@ -262,9 +237,12 @@ Document Text:
             compliance_score.set(parsed["finalScore"])
             compliance_score_value = parsed["finalScore"]
 
+        create_audit_log("admin@company.com", "UPLOAD_POLICY", "SUCCESS")
+
         return JSONResponse(parsed)
 
     except Exception as e:
+        create_audit_log("admin@company.com", "UPLOAD_POLICY", "FAILED")
         return JSONResponse(
             {
                 "error": "AI parsing failed",
@@ -273,24 +251,23 @@ Document Text:
             },
             status_code=500
         )
+
+# -----------------------------------
+# WEBSOCKET
+# -----------------------------------
 @app.websocket("/ws/analyze")
 async def websocket_analysis(websocket: WebSocket):
     await websocket.accept()
-
     try:
-        # Stage 1
         await websocket.send_json({"stage": "EXTRACTING"})
         await asyncio.sleep(1)
 
-        # Stage 2
         await websocket.send_json({"stage": "VALIDATING"})
         await asyncio.sleep(1)
 
-        # Stage 3
         await websocket.send_json({"stage": "AI_ANALYSIS"})
         await asyncio.sleep(2)
 
-        # Fake final result
         await websocket.send_json({
             "stage": "COMPLETED",
             "result": {
@@ -299,9 +276,25 @@ async def websocket_analysis(websocket: WebSocket):
                 "risk_level": "LOW"
             }
         })
-
-    except Exception as e:
-        await websocket.send_json({"error": str(e)})
-
     finally:
         await websocket.close()
+
+# -----------------------------------
+# GET AUDIT LOGS
+# -----------------------------------
+@app.get("/audit")
+def get_audit_logs():
+    db = SessionLocal()
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
+    db.close()
+
+    return [
+        {
+            "id": log.id,
+            "user": log.user,
+            "action": log.action,
+            "status": log.status,
+            "timestamp": log.timestamp
+        }
+        for log in logs
+    ]
