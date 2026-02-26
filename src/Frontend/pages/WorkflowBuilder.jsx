@@ -199,6 +199,9 @@ export default function WorkflowBuilder() {
 
       const res = await fetch(`${API_BASE}/upload-nda`, {
         method: "POST",
+          headers: {
+    "x-user-role": user?.role || "Unknown",
+  },
         body: formData,
       });
 

@@ -1,5 +1,5 @@
 
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = " https://veritas-ai-1-f5sr.onrender.com";
 
 export default API_BASE;

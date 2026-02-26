@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-
+import API_BASE from "../service/api";
 export default function AuditLogs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,7 +12,7 @@ export default function AuditLogs() {
       try {
         setLoading(true);
 
-        const res = await fetch("http://localhost:8000/audit");
+        const res = await fetch(`${API_BASE}/audit`);
         const data = await res.json();
 
         setLogs(Array.isArray(data) ? data : []);

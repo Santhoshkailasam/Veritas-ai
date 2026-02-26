@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from fastapi import WebSocket
 import asyncio
 from pydantic import BaseModel
+from fastapi import Header
 # -----------------------------------
 # CREATE FASTAPI APP
 # -----------------------------------
@@ -133,7 +134,7 @@ def extract_text(filename: str, content: bytes) -> str:
 # MAIN ANALYSIS ENDPOINT
 # -----------------------------------
 @app.post("/upload-nda")
-async def upload_nda(file: UploadFile = File(...)):
+async def upload_nda(file: UploadFile = File(...),x_user_role: str = Header(default="SYSTEM")):
 
     global documents_processed_value, compliance_score_value
 
@@ -144,7 +145,7 @@ async def upload_nda(file: UploadFile = File(...)):
 
     if not text.strip():
         add_audit_log(
-             user="SYSTEM",
+              user=x_user_role,
              action="UPLOAD_POLICY",
              status="FAILED"
          )
