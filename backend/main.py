@@ -13,6 +13,8 @@ import time
 import re
 from dotenv import load_dotenv
 from fastapi import WebSocket
+import asyncio
+from pydantic import BaseModel
 # -----------------------------------
 # CREATE FASTAPI APP
 # -----------------------------------
@@ -20,6 +22,32 @@ app = FastAPI()
 load_dotenv()
 GROK_API_KEY = os.getenv("GROK_API_KEY")
 
+# -----------------------------------
+# AUDIT LOG MODEL       
+# -----------------------------------
+class AuditRequest(BaseModel):
+    user: str
+    action: str
+    status: str
+
+# -----------------------------------
+# AUDIT LOG STORAGE
+# -----------------------------------
+
+audit_logs = []
+audit_counter = 1
+
+def add_audit_log(user: str, action: str, status: str):
+    global audit_counter
+    audit_logs.append({
+        "id": audit_counter,
+        "user": user,
+        "action": action,
+        "status": status,
+        "timestamp": int(time.time() * 1000)
+    })
+    audit_counter += 1
+    
 # -----------------------------------
 # CORS CONFIGURATION
 # -----------------------------------
@@ -47,6 +75,7 @@ compliance_score_value = 0
 # -----------------------------------
 @app.get("/")
 def home():
+    add_audit_log("Santhosh", "LOGIN", "SUCCESS")
     return {"message": "Compliance AI Backend Running"}
 
 @app.get("/metrics")
@@ -114,6 +143,11 @@ async def upload_nda(file: UploadFile = File(...)):
     text = extract_text(filename, content)
 
     if not text.strip():
+        add_audit_log(
+             user="SYSTEM",
+             action="UPLOAD_POLICY",
+             status="FAILED"
+         )
         return JSONResponse(
             {"error": "Could not extract text from document"},
             status_code=400
@@ -134,6 +168,11 @@ async def upload_nda(file: UploadFile = File(...)):
     ]
 
     if not any(keyword in text_lower for keyword in policy_keywords):
+        add_audit_log(
+            user="SYSTEM",
+            action="UPLOAD_POLICY",
+            status="FAILED"
+        )
         return JSONResponse(
             {"error": "Please upload a valid GDPR, CCPA, or Security Policy document."},
             status_code=400
@@ -260,10 +299,21 @@ Document Text:
         if "finalScore" in parsed:
             compliance_score.set(parsed["finalScore"])
             compliance_score_value = parsed["finalScore"]
+        add_audit_log(
+            user="SYSTEM",
+            action="UPLOAD_POLICY",
+            status="SUCCESS"
+        )
 
         return JSONResponse(parsed)
+    
 
     except Exception as e:
+        add_audit_log(
+            user="SYSTEM",
+            action="UPLOAD_POLICY",
+            status="FAILED"
+        )
         return JSONResponse(
             {
                 "error": "AI parsing failed",
@@ -304,3 +354,17 @@ async def websocket_analysis(websocket: WebSocket):
 
     finally:
         await websocket.close()
+
+
+
+@app.post("/audit")
+def create_audit_log(audit: AuditRequest):
+    add_audit_log(
+        user=audit.user,
+        action=audit.action,
+        status=audit.status
+    )
+    return {"message": "Audit log created"}
+@app.get("/audit")
+def get_audit_logs():
+    return JSONResponse(audit_logs)
