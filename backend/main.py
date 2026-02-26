@@ -170,7 +170,7 @@ async def upload_nda(file: UploadFile = File(...),x_user_role: str = Header(defa
 
     if not any(keyword in text_lower for keyword in policy_keywords):
         add_audit_log(
-            user="SYSTEM",
+            user=x_user_role,
             action="UPLOAD_POLICY",
             status="FAILED"
         )
@@ -301,7 +301,7 @@ Document Text:
             compliance_score.set(parsed["finalScore"])
             compliance_score_value = parsed["finalScore"]
         add_audit_log(
-            user="SYSTEM",
+            user=x_user_role,
             action="UPLOAD_POLICY",
             status="SUCCESS"
         )
@@ -311,7 +311,7 @@ Document Text:
 
     except Exception as e:
         add_audit_log(
-            user="SYSTEM",
+            user=x_user_role,
             action="UPLOAD_POLICY",
             status="FAILED"
         )
