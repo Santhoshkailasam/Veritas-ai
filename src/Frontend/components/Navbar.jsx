@@ -26,9 +26,7 @@ export default function Navbar() {
           onClick={() => navigate("/workflow")}
         />
 
-        <NavItem label="Documents" />
         <NavItem label="Audit Logs"   active={location.pathname === "/auditlogs"} onClick={() => navigate("/auditlogs")}/>
-        <NavItem label="System Metrics" />
       </div>
 
       {/* Right */}
