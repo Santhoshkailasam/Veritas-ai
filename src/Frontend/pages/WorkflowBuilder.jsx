@@ -200,14 +200,15 @@ export default function WorkflowBuilder() {
       const res = await fetch(`${API_BASE}/upload-nda`, {
         method: "POST",
           headers: {
-    "x-user-role": user?.role || "Unknown",
+     "x-user-role": user?.role || "Unknown",
   },
         body: formData,
       });
 
       const data = await res.json();
       console.log("Backend Response:", data);
-
+      console.log("Logged in user:", user);
+      console.log("Sending header:", user?.role);
       /* ---------------- HANDLE ERRORS ---------------- */
 
       // Hard backend error

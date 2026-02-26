@@ -76,7 +76,6 @@ compliance_score_value = 0
 # -----------------------------------
 @app.get("/")
 def home():
-    add_audit_log("Santhosh", "LOGIN", "SUCCESS")
     return {"message": "Compliance AI Backend Running"}
 
 @app.get("/metrics")
@@ -134,8 +133,8 @@ def extract_text(filename: str, content: bytes) -> str:
 # MAIN ANALYSIS ENDPOINT
 # -----------------------------------
 @app.post("/upload-nda")
-async def upload_nda(file: UploadFile = File(...),x_user_role: str = Header(default="SYSTEM")):
-
+async def upload_nda(file: UploadFile = File(...),x_user_role: str = Header(...)):
+    print("HEADER RECEIVED:", x_user_role)
     global documents_processed_value, compliance_score_value
 
     content = await file.read()
