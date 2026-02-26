@@ -2,23 +2,45 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "../../context/Authcontext";
-
+import API_BASE from "../service/api";
 export default function Login() {
   const [selectedRole, setSelectedRole] = useState("paralegal");
   const navigate = useNavigate();
   const { login } = useContext(AuthContext);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
- const handleLogin = () => {
+const handleLogin = async () => {
   const result = login(email, password);
 
   if (!result.success) {
     alert(result.message);
+
+    // ❌ Failed login audit
+    await fetch(`${API_BASE}/audit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user: email,
+        action: "LOGIN",
+        status: "FAILED",
+      }),
+    });
+
     return;
   }
 
   const role = result.user.role;
+
+  // ✅ Success login audit
+  await fetch(`${API_BASE}/audit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user: email,
+      action: "LOGIN",
+      status: "SUCCESS",
+    }),
+  });
 
   if (role === "paralegal" || role === "associate") {
     navigate("/workflow");

@@ -1,45 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function AuditLogs() {
-  const dummyLogs = [
-    {
-      id: 1,
-      user: "santhosh@company.com",
-      action: "UPLOAD_POLICY",
-      status: "SUCCESS",
-      timestamp: "2026-02-17T16:02:10Z",
-    },
-    {
-      id: 2,
-      user: "admin@company.com",
-      action: "LOGIN",
-      status: "SUCCESS",
-      timestamp: "2026-02-17T14:42:22Z",
-    },
-    {
-      id: 3,
-      user: "john@company.com",
-      action: "UPLOAD_POLICY",
-      status: "FAILED",
-      timestamp: "2026-02-16T22:15:10Z",
-    },
-    {
-      id: 4,
-      user: "admin@company.com",
-      action: "LOGOUT",
-      status: "SUCCESS",
-      timestamp: "2026-02-16T23:50:55Z",
-    },
-  ];
-
-  const [logs] = useState(dummyLogs);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("ALL");
 
+  // Fetch logs
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+
+        const res = await fetch("http://localhost:8000/audit");
+        const data = await res.json();
+
+        setLogs(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Error fetching logs:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Safe filtering
   const filteredLogs = logs.filter((log) => {
+    const user = (log.user || "").toLowerCase();
+    const action = (log.action || "").toLowerCase();
+
     const matchesSearch =
-      log.user.toLowerCase().includes(search.toLowerCase()) ||
-      log.action.toLowerCase().includes(search.toLowerCase());
+      user.includes(search.toLowerCase()) ||
+      action.includes(search.toLowerCase());
 
     const matchesFilter =
       filter === "ALL" || log.action === filter;
@@ -53,7 +50,6 @@ export default function AuditLogs() {
 
   return (
     <div style={styles.page}>
-
       <div style={styles.container}>
         <h1 style={styles.heading}>Audit Activity Dashboard</h1>
 
@@ -86,58 +82,66 @@ export default function AuditLogs() {
           </select>
         </div>
 
+        {/* Loading */}
+        {loading && (
+          <div style={styles.loadingBox}>
+            Loading logs...
+          </div>
+        )}
+
         {/* Table */}
-      <div style={styles.premiumTableWrapper}>
-  <table style={styles.premiumTable}>
-    <thead>
-      <tr style={styles.premiumHead}>
-        <th style={styles.th}>User</th>
-        <th style={styles.th}>Action</th>
-        <th style={styles.thCenter}>Status</th>
-        <th style={styles.thRight}>Timestamp</th>
-      </tr>
-    </thead>
+        <div style={styles.premiumTableWrapper}>
+          <table style={styles.premiumTable}>
+            <thead>
+              <tr style={styles.premiumHead}>
+                <th style={styles.th}>User</th>
+                <th style={styles.th}>Action</th>
+                <th style={styles.thCenter}>Status</th>
+                <th style={styles.thRight}>Timestamp</th>
+              </tr>
+            </thead>
 
-    <tbody>
-      {filteredLogs.map((log, index) => (
-        <tr
-          key={log.id}
-          style={{
-            ...styles.premiumRow,
-            background:
-              index % 2 === 0 ? "#ffffff" : "#f9fafb",
-          }}
-        >
-          <td style={styles.td}>{log.user}</td>
-          <td style={styles.td}>{log.action}</td>
+            <tbody>
+              {filteredLogs.map((log, index) => (
+                <tr
+                  key={log.id}
+                  style={{
+                    ...styles.premiumRow,
+                    background:
+                      index % 2 === 0 ? "#ffffff" : "#f9fafb",
+                  }}
+                >
+                  <td style={styles.td}>{log.user || "-"}</td>
+                  <td style={styles.td}>{log.action || "-"}</td>
 
-          <td style={styles.tdCenter}>
-            <span
-              style={{
-                ...styles.statusBadgePremium,
-                background:
-                  log.status === "SUCCESS"
-                    ? "linear-gradient(135deg,#16a34a,#22c55e)"
-                    : "linear-gradient(135deg,#dc2626,#ef4444)",
-              }}
-            >
-              {log.status}
-            </span>
-          </td>
+                  <td style={styles.tdCenter}>
+                    <span
+                      style={{
+                        ...styles.statusBadgePremium,
+                        background:
+                          log.status === "SUCCESS"
+                            ? "linear-gradient(135deg,#16a34a,#22c55e)"
+                            : "linear-gradient(135deg,#dc2626,#ef4444)",
+                      }}
+                    >
+                      {log.status || "-"}
+                    </span>
+                  </td>
 
-          <td style={styles.tdRight}>
-            {new Date(log.timestamp).toLocaleString()}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
+                  <td style={styles.tdRight}>
+                    {log.timestamp
+                      ? new Date(log.timestamp).toLocaleString()
+                      : "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-  {filteredLogs.length === 0 && (
-    <div style={styles.empty}>No logs found.</div>
-  )}
-</div>
-
+          {!loading && filteredLogs.length === 0 && (
+            <div style={styles.empty}>No logs found.</div>
+          )}
+        </div>
       </div>
     </div>
   );

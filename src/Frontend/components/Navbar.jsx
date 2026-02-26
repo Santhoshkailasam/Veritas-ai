@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-
+import LogoutButton from "./Logout";
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,9 +32,7 @@ export default function Navbar() {
       </div>
 
       {/* Right */}
-      <div style={styles.rightSection}>
-        <div style={styles.userCircle}>SK</div>
-      </div>
+     <LogoutButton />
     </div>
   );
 }

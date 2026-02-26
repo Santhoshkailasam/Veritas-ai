@@ -1,7 +1,9 @@
 import { useState,useEffect } from "react";
 import {LineChart,Line,XAxis,YAxis,Tooltip,ResponsiveContainer,CartesianGrid} from "recharts";
 import { IoDocumentTextOutline, IoShieldCheckmarkOutline, IoPeopleOutline, IoCheckmarkCircle} from "react-icons/io5";
-
+import LogoutButton from "../components/Logout";
+import { useContext } from "react";
+import { AuthContext } from "../../context/Authcontext";
 const weeklyData = [
   { name: "Mon", value: 400 },
   { name: "Tue", value: 650 },
@@ -49,15 +51,29 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, []);
 
-
+const { user } = useContext(AuthContext);
 
   return (
+    
     <div style={styles.page}>
     
       {/* Main */}
       <div style={styles.main}>
+ {user?.role === "it admin" && (
+  <div
+    style={{
+      position: "absolute",
+      top: "40px",
+      right: "60px",
+      zIndex: 1000,
+    }}
+  >
+    <LogoutButton />
+  </div>
+)}
         <h1 style={styles.heading}>Overview Dashboard</h1>
-
+        
+          
         {/* Stats */}
         <div style={styles.statsGrid}>
           <Stat

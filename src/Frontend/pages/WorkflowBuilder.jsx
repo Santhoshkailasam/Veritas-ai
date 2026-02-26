@@ -13,7 +13,8 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { useContext } from "react";
 import { AuthContext } from "../../context/Authcontext";
-
+import API_BASE from "../service/api";
+import LogoutButton from "../components/Logout";
 /* ---------------- NODE TYPES ---------------- */
 
 const NODE_TYPES = {
@@ -38,6 +39,7 @@ export default function WorkflowBuilder() {
   const { user } = useContext(AuthContext);
   const isAssociate = user?.role === "associate";
   const isExecutor = ["paralegal", "partner"].includes(user?.role);
+  const showLogout = ["associate", "paralegal"].includes(user?.role);
   /* ---------------- ADD NODE ---------------- */
 
   const addNode = (type) => {
@@ -195,7 +197,7 @@ export default function WorkflowBuilder() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("https://veritas-ai-1-f5sr.onrender.com/upload-nda", {
+      const res = await fetch(`${API_BASE}/upload-nda`, {
         method: "POST",
         body: formData,
       });
@@ -320,6 +322,8 @@ export default function WorkflowBuilder() {
           <h3 style={{ marginBottom: 15 }}>
             {isAssociate ? "Workflow Builder" : "Workflow Executor"}
           </h3>
+         {showLogout && <LogoutButton />}
+          
 
 
           {/* Show buttons ONLY for Associate */}
@@ -343,7 +347,7 @@ export default function WorkflowBuilder() {
             type="file"
             onChange={(e) => setFile(e.target.files[0])}
           />
-
+         
           <button
             style={styles.runBtn}
             onClick={runWorkflow}
@@ -351,7 +355,10 @@ export default function WorkflowBuilder() {
           >
             {running ? "Running Workflow..." : "Run Workflow"}
           </button>
+          
         </div>
+        
+        
 
         {/* CANVAS */}
         <div style={styles.canvasWrapper}>
@@ -493,7 +500,7 @@ export default function WorkflowBuilder() {
                 Analysis Time: {result.analysis_time_ms}ms
               </div>
             </div>
-
+        
           </div>
         </div>
       )}
@@ -537,6 +544,7 @@ export default function WorkflowBuilder() {
           </div>
         </div>
       )}
+      
     </div>
   );
 }
